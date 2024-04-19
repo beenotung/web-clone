@@ -8,6 +8,7 @@ Recursively clone a website with url rewrite in controlled manner.
 
 - Clone a website from cli
 - Recursively discover same-site links
+- Auto scroll to activate images with js-based lazy loading
 - Review which links to download or skip
 - Rewrite absolute urls into relative urls
 

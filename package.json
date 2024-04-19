@@ -8,6 +8,10 @@
     "recursive",
     "interactive",
     "website",
+    "auto-scroll",
+    "lazy-loading",
+    "image",
+    "link",
     "archive",
     "clone"
   ],
