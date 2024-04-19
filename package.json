@@ -1,6 +1,6 @@
 {
   "name": "web-clone",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Recursively clone a website with url rewrite in controlled manner.",
   "keywords": [
     "cli",
