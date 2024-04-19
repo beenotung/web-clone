@@ -4,10 +4,10 @@ import { closeBrowser, scanWeb } from './web-clone'
 async function main() {
   await initConfig()
   await scanWeb({
-    dir: env.WEB_CLONE_DIR,
-    listFile: env.WEB_CLONE_LIST_FILE,
-    url: env.WEB_CLONE_URL,
-    scrollInDetail: env.WEB_CLONE_SCROLL_IN_DETAIL == 'true',
+    dir: env.SITE_DIR,
+    listFile: env.SITE_DIR,
+    url: env.CLONE_URL,
+    scrollInDetail: env.SCROLL_IN_DETAIL == 'true',
   })
   await closeBrowser()
 }

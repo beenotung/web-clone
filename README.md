@@ -44,10 +44,10 @@ The values are stored in `.env` file and auto restored in sub-sequence running.
 Example setup:
 
 ```
-WEB_CLONE_DIR=./website
-WEB_CLONE_LIST_FILE=file-list.txt
-WEB_CLONE_URL=https://example.net/
-WEB_CLONE_SCROLL_IN_DETAIL=false
+SITE_DIR=./website
+SITE_LIST_FILE=file-list.txt
+CLONE_URL=https://example.net/
+SCROLL_IN_DETAIL=false
 ```
 
 ## License
