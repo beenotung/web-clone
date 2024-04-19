@@ -1,14 +1,38 @@
 {
   "name": "web-clone",
   "version": "0.0.0",
-  "description": "",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "main": "index.js",
+  "description": "Recursively clone a website with url rewrite in controlled manner.",
+  "keywords": [
+    "cli",
+    "downloader",
+    "recursive",
+    "interactive",
+    "cli",
+    "website",
+    "archive",
+    "clone"
+  ],
+  "author": "Beeno Tung <aabbcc1241@yahoo.com.hk> (https://beeno-tung.surge.sh)",
+  "license": "BSD-2-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/beenotung/web-clone.git"
+  },
+  "homepage": "https://github.com/beenotung/web-clone#readme",
+  "bugs": {
+    "url": "https://github.com/beenotung/web-clone/issues"
+  },
+  "main": "dist/web-clone.js",
+  "types": "dist/web-clone.d.ts",
+  "bin": {
+    "web-clone": "cli.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "test": "tsc --noEmit",
-    "build": "tsc -p ."
+    "build": "rm -rf dist && tsc -p ."
   },
   "dependencies": {
     "dotenv": "^16.4.5",

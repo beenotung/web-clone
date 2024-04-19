@@ -8,29 +8,27 @@ import {
 } from 'fs'
 import { dirname, extname, join } from 'path'
 import 'playwright'
-import { Page, chromium, Request } from 'playwright'
+import { Page, chromium, Request, Browser } from 'playwright'
 import { Readable } from 'stream'
 import { finished } from 'stream/promises'
 
-function newBrowser() {
-  let p = chromium.launch({
-    headless: false,
-  })
-  getBrowser = () => p
-  return p
-}
+let browserPromise: Promise<Browser> | undefined
 
-let getBrowser = newBrowser
+function getBrowser(): Promise<Browser> {
+  browserPromise ||= chromium.launch({ headless: false })
+  return browserPromise
+}
 
 export async function scanWeb(options: {
   dir: string
   listFile: string
   url: string
   scrollInDetail: boolean
+  browser?: Browser
 }) {
   let { dir, url, listFile } = options
   let fileList = loadListFile(listFile)
-  let browser = await getBrowser()
+  let browser = options.browser || (await getBrowser())
   let page = await browser.newPage()
   for (;;) {
     await downloadPage({
@@ -59,8 +57,12 @@ export async function scanWeb(options: {
     url = next.url
   }
   await page.close()
-  getBrowser = newBrowser
-  await browser.close()
+}
+
+export async function closeBrowser() {
+  let p = browserPromise?.then(browser => browser.close())
+  browserPromise = undefined
+  return p
 }
 
 type FileStatus = 'new' | 'pending' | 'saved' | 'skip'
