@@ -7,7 +7,6 @@
     "downloader",
     "recursive",
     "interactive",
-    "cli",
     "website",
     "archive",
     "clone"
