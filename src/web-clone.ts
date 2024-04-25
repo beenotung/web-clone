@@ -26,35 +26,28 @@ export async function scanWeb(options: {
   scrollInDetail: boolean
   browser?: Browser
 }) {
-  let { dir, url, listFile } = options
-  let fileList = loadListFile(listFile)
+  let { dir, listFile } = options
+  let items = loadListFile(listFile, options.url)
   let browser = options.browser || (await getBrowser())
   let page = await browser.newPage()
   for (;;) {
+    let item = items.find(item => item.status == 'pending')
+    if (!item) break
     await downloadPage({
       dir,
-      url,
+      url: item.url,
       scrollInDetail: options.scrollInDetail,
       page,
       onPageLink: url => {
         addToFileList({
-          listFile,
-          fileList,
+          file: listFile,
+          items: items,
           url,
         })
       },
     })
-    updateFileList({
-      listFile,
-      fileList,
-      item: {
-        status: 'saved',
-        url,
-      },
-    })
-    let next = fileList.find(item => item.status === 'pending')
-    if (!next) break
-    url = next.url
+    item.status = 'saved'
+    saveFileList(listFile, items)
   }
   await page.close()
 }
@@ -78,9 +71,17 @@ function listFileItemToLine(item: ListFileItem): string {
   return `${item.status} ${item.url}`
 }
 
-function loadListFile(file: string): ListFileItem[] {
-  if (!existsSync(file)) return []
-  return readFileSync(file)
+function loadListFile(file: string, url: string): ListFileItem[] {
+  let list: ListFileItem[]
+  if (!existsSync(file)) {
+    list = [{ status: 'pending', url }]
+    writeFileSync(
+      file,
+      listFileHeader + '\n' + listFileItemToLine(list[0]) + '\n',
+    )
+    return list
+  }
+  list = readFileSync(file)
     .toString()
     .split('\n')
     .map(line => line.trim().split(' '))
@@ -91,53 +92,35 @@ function loadListFile(file: string): ListFileItem[] {
         url: parts[1],
       }
     })
+  let index = list.findIndex(item => item.url == url)
+  if (index == -1) {
+    list.unshift({ status: 'pending', url })
+    saveFileList(file, list)
+  } else if (index != 0) {
+    let [item] = list.splice(index, 1)
+    list.unshift(item)
+    saveFileList(file, list)
+  }
+  return list
 }
 
-function updateFileList(options: {
-  listFile: string
-  fileList: ListFileItem[]
-  item: ListFileItem
-}) {
-  let { listFile } = options
-  let { status, url } = options.item
-  let updated = false
-  let found = false
-  for (let item of options.fileList) {
-    if (item.url == url) {
-      found = true
-      if (item.status !== status) {
-        item.status = status
-        updated = true
-      }
-    }
-  }
-  if (updated) {
-    let content = options.fileList.map(listFileItemToLine).join('\n') + '\n'
-    writeFileSync(listFile, content)
-  } else if (!found) {
-    let { item } = options
-    if (options.fileList.length === 0) {
-      appendFileSync(listFile, listFileHeader + '\n')
-    }
-    options.fileList.push(item)
-    appendFileSync(listFile, listFileItemToLine(item) + '\n')
-  }
+function saveFileList(file: string, list: ListFileItem[]) {
+  let text =
+    listFileHeader + '\n' + list.map(listFileItemToLine).join('\n') + '\n'
+  writeFileSync(file, text)
 }
 
 function addToFileList(options: {
-  listFile: string
-  fileList: ListFileItem[]
+  file: string
+  items: ListFileItem[]
   url: string
 }) {
-  let { listFile, url } = options
-  if (options.fileList.some(item => item.url == url)) return
+  let { file, items, url } = options
+  if (items.some(item => item.url == url)) return
   console.log('add page link:', url)
   let item: ListFileItem = { status: 'new', url }
-  if (options.fileList.length === 0) {
-    appendFileSync(listFile, listFileHeader + '\n')
-  }
-  options.fileList.push(item)
-  appendFileSync(listFile, listFileItemToLine(item) + '\n')
+  items.push(item)
+  appendFileSync(file, listFileItemToLine(item) + '\n')
 }
 
 let resourceExtnameList = [
