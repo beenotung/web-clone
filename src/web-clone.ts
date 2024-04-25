@@ -6,7 +6,7 @@ import {
   readFileSync,
   writeFileSync,
 } from 'fs'
-import { dirname, extname, join } from 'path'
+import { basename, dirname, extname, join } from 'path'
 import 'playwright'
 import { Page, chromium, Request, Browser } from 'playwright'
 import { Readable } from 'stream'
@@ -312,6 +312,8 @@ function mkdirForFile(file: string) {
 function pathnameToFile(dir: string, pathname: string) {
   if (pathname.endsWith('/')) {
     pathname += 'index.html'
+  } else if (extname(basename(pathname)) == '') {
+    pathname += '/index.html'
   }
   return join(dir, pathname)
 }
