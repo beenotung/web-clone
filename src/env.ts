@@ -1,5 +1,4 @@
 import { config } from 'dotenv'
-import { readFileSync, writeFileSync } from 'fs'
 import { ask } from 'npm-init-helper'
 import populateEnv, { saveEnv } from 'populate-env'
 
