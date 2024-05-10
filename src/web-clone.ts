@@ -220,6 +220,35 @@ async function downloadPage(options: {
     })
   }
   page.off('request', onRequest)
+
+  // convert to relative link
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLAnchorElement>('[href]').forEach(link => {
+      let href = link.href
+      if (new URL(href).origin != location.origin) return
+      link.setAttribute('href', href.replace(location.origin, ''))
+    })
+    document.querySelectorAll<HTMLImageElement>('[src]').forEach(link => {
+      let href = link.src
+      if (new URL(href).origin != location.origin) return
+      link.setAttribute('src', href.replace(location.origin, ''))
+    })
+  })
+
+  // remove favicon if not relative link
+  await page.evaluate(() => {
+    document
+      .querySelectorAll<HTMLLinkElement>(
+        'link[rel="icon"][type="image/x-icon"]',
+      )
+      .forEach(link => {
+        let href = link.href
+        if (new URL(href).origin != location.origin) {
+          link.remove()
+        }
+      })
+  })
+
   let resLinks = await page.evaluate(() => {
     let links: string[] = []
     function checkLink(link: string | undefined) {
