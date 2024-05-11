@@ -137,7 +137,6 @@ let resourceExtnameList = [
   '.mp3',
   '.mp4',
   '.json',
-  '.php',
   '.pdf',
 ]
 
@@ -161,7 +160,11 @@ async function downloadPage(options: {
     if (url.origin !== origin) return
     if (url.href == options.url) return
     let pathname = url.pathname
-    if (pathname.endsWith('/')) {
+    if (
+      pathname.endsWith('/') ||
+      pathname.endsWith('.html') ||
+      pathname.endsWith('.php')
+    ) {
       // another html page
       return options.onPageLink(url.href)
     }
