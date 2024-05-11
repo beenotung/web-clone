@@ -128,6 +128,7 @@ async function downloadPage(options: {
   console.log('download page:', options.url)
   let saved = false
   async function onRequest(req: Request) {
+    if (stopped) return
     if (req.method() != 'GET') return
     let href = req.url().split('#')[0]
     if (href == options.url) return
@@ -147,6 +148,7 @@ async function downloadPage(options: {
     let ext = extname(pathname)
     if (resourceExtnameList.includes(ext)) {
       await downloadFile({ origin, dir, url: url.href })
+      if (stopped) return
       if (saved) {
         await savePage()
       }
@@ -154,6 +156,7 @@ async function downloadPage(options: {
     }
     console.log('unknown ext:', ext, 'url:', url.href)
   }
+  let stopped = false
   page.on('request', onRequest)
   await page.goto(options.url, { waitUntil: 'domcontentloaded' })
   if (options.scrollInDetail) {
@@ -202,6 +205,7 @@ async function downloadPage(options: {
     })
   }
   page.off('request', onRequest)
+  stopped = true
 
   // convert to relative link
   await page.evaluate(() => {
