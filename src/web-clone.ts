@@ -317,7 +317,9 @@ async function downloadPage(options: {
           })
         })
       document
-        .querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
+        .querySelectorAll<HTMLLinkElement>(
+          'link[rel="stylesheet"],link[rel*="icon"]',
+        )
         .forEach(node => {
           checkLink({
             href: node.href,
