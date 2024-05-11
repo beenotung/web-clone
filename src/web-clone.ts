@@ -1,6 +1,5 @@
 import { createWriteStream, existsSync, mkdirSync, writeFileSync } from 'fs'
 import { basename, dirname, extname, join } from 'path'
-import 'playwright'
 import { Page, chromium, Request, Browser } from 'playwright'
 import { Readable } from 'stream'
 import { finished } from 'stream/promises'
