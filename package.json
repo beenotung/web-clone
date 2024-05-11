@@ -40,11 +40,11 @@
   "dependencies": {
     "dotenv": "^16.4.5",
     "npm-init-helper": "^1.6.2",
-    "playwright": "^1.43.1",
+    "playwright": "^1.44.0",
     "populate-env": "^2.1.0"
   },
   "devDependencies": {
-    "@types/node": "^20.12.7",
+    "@types/node": "^20.12.11",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.4.5"
