@@ -84,12 +84,13 @@ function loadListFile(file: string, url: string): ListFileItem[] {
   list = readFileSync(file)
     .toString()
     .split('\n')
+    // example: 'pending https://www.example.net/'
     .map(line => line.trim().split(' '))
     .filter(parts => parts.length == 2)
     .map(parts => {
       return {
         status: parts[0] as any,
-        url: parts[1],
+        url: parts[1].split('#')[0],
       }
     })
   let index = list.findIndex(item => item.url == url)
@@ -140,6 +141,9 @@ let resourceExtnameList = [
   '.pdf',
 ]
 
+// skip protocol of 'chrome-extension:' and 'blob:'
+let webProtocols = ['http:', 'https:']
+
 async function downloadPage(options: {
   dir: string
   url: string
@@ -147,18 +151,19 @@ async function downloadPage(options: {
   page: Page
   onPageLink: (url: string) => void
 }) {
-  let { page } = options
-  let url = new URL(options.url)
-  let file = pathnameToFile(options.dir, url.pathname)
+  let { dir, page } = options
+  let origin = new URL(options.url).origin
+  let file = pathnameToFile({ origin, dir, url: options.url })
   // if (existsSync(file)) return
   console.log('download page:', options.url)
-  let origin = url.origin
   let saved = false
   async function onRequest(req: Request) {
     if (req.method() != 'GET') return
-    let url = new URL(req.url())
+    let href = req.url().split('#')[0]
+    if (href == options.url) return
+    let url = new URL(href)
     if (url.origin !== origin) return
-    if (url.href == options.url) return
+    if (!webProtocols.includes(url.protocol)) return
     let pathname = url.pathname
     if (
       pathname.endsWith('/') ||
@@ -170,7 +175,7 @@ async function downloadPage(options: {
     }
     let ext = extname(pathname)
     if (resourceExtnameList.includes(ext)) {
-      await downloadFile({ dir: options.dir, url: url.href })
+      await downloadFile({ origin, dir, url: url.href })
       if (saved) {
         await savePage()
       }
@@ -255,31 +260,44 @@ async function downloadPage(options: {
       })
   })
 
-  let resLinks = await page.evaluate(() => {
-    let links: string[] = []
-    function checkLink(link: string | undefined) {
-      if (!link) return
-      console.log('link:', link)
-      if (new URL(link).origin != location.origin) return
-      links.push(link)
-    }
-    document
-      .querySelectorAll<HTMLImageElement>('img,video,audio,script')
-      .forEach(node => {
-        checkLink(node.src)
-        let lazySrc = node.dataset.lazySrc
-        if (lazySrc?.[0] == '/') {
-          lazySrc = location.origin + lazySrc
-        }
-        checkLink(lazySrc)
-      })
-    document
-      .querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
-      .forEach(node => {
-        checkLink(node.href)
-      })
-    return links
-  })
+  let resLinks = await page.evaluate(
+    ({ webProtocols, external_resource_prefix }) => {
+      let links: string[] = []
+      function checkLink(
+        link: string | undefined,
+        updateFn: (rewritten_url: string) => void,
+      ): void {
+        if (!link) return
+        let url = new URL(link)
+        if (!webProtocols.includes(url.protocol)) return
+        links.push(link)
+        if (url.origin == location.origin) return
+        let rewritten_url = link.replace(
+          url.origin,
+          `/${external_resource_prefix}/${url.host.replace(':', '_')}`,
+        )
+        updateFn(rewritten_url)
+      }
+      document
+        .querySelectorAll<HTMLImageElement>('img,video,audio,script')
+        .forEach(node => {
+          checkLink(node.src, src => (node.src = src))
+
+          let lazySrc = node.dataset.lazySrc
+          if (lazySrc?.[0] == '/') {
+            lazySrc = location.origin + lazySrc
+          }
+          checkLink(lazySrc, src => (node.dataset.lazySrc = src))
+        })
+      document
+        .querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
+        .forEach(node => {
+          checkLink(node.href, href => (node.href = href))
+        })
+      return links
+    },
+    { webProtocols, external_resource_prefix },
+  )
   let pageLinks = await page.evaluate(() => {
     let links = new Set<string>()
     document.querySelectorAll('a').forEach(a => {
@@ -305,7 +323,7 @@ async function downloadPage(options: {
     options.onPageLink(link)
   }
   for (let link of resLinks) {
-    await downloadFile({ dir: options.dir, url: link })
+    await downloadFile({ origin, dir, url: link })
   }
   async function savePage() {
     let html = await page.evaluate(() => {
@@ -324,8 +342,12 @@ async function downloadPage(options: {
   saved = true
 }
 
-async function downloadFile(options: { dir: string; url: string }) {
-  let file = pathnameToFile(options.dir, new URL(options.url).pathname)
+async function downloadFile(options: {
+  origin: string
+  dir: string
+  url: string
+}) {
+  let file = pathnameToFile(options)
   if (existsSync(file)) return
   console.log('download file:', options.url)
   let res = await fetch(options.url)
@@ -344,11 +366,19 @@ function mkdirForFile(file: string) {
   mkdirSync(dir, { recursive: true })
 }
 
-function pathnameToFile(dir: string, pathname: string) {
+let external_resource_prefix = '__extern__'
+
+function pathnameToFile(options: { origin: string; dir: string; url: string }) {
+  let url = new URL(options.url)
+  let pathname = url.pathname
   if (pathname.endsWith('/')) {
     pathname += 'index.html'
   } else if (extname(basename(pathname)) == '') {
     pathname += '/index.html'
   }
+  let dir =
+    url.origin == options.origin
+      ? options.dir
+      : join(options.dir, external_resource_prefix, url.host.replace(':', '_'))
   return join(dir, pathname)
 }
