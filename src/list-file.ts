@@ -10,31 +10,48 @@ export class ListFile<Status extends string> {
   items: ListFileItem<Status>[]
 
   constructor(
-    public options: { possible_status_list: Status[]; file: string },
+    public options: {
+      possible_status_list: ReadonlyArray<Status>
+      file: string
+    },
   ) {
     let status = options.possible_status_list
     this.listFileHeader = `# possible status: ${status.join(', ')}`
-    this.items = this.loadItemsFromFile()
+    let res = this.loadItemsFromFile()
+    this.items = res?.items || []
+    if (!res?.isHeaderMatched) {
+      this.saveToFile()
+    }
   }
 
-  loadItemsFromFile(): ListFileItem<Status>[] {
-    let { file } = this.options
-    if (!existsSync(file)) return []
-    let items = readFileSync(file)
-      .toString()
-      .split('\n')
+  private loadItemsFromFile() {
+    let { file, possible_status_list } = this.options
+    if (!existsSync(file)) {
+      appendFileSync(file, this.listFileHeader + '\n')
+      return
+    }
+    let lines = readFileSync(file).toString().split('\n')
+    let isHeaderMatched = lines[0] == this.listFileHeader
+    let items: ListFileItem<Status>[] = lines
       // skip comment lines
       .filter(line => line[0] != '#')
       // example: 'pending https://www.example.net/'
       .map(line => line.trim().split(' '))
       .filter(parts => parts.length == 2)
       .map(parts => {
+        let status = parts[0] as any
+        let url = parts[1].split('#')[0]
+        if (!possible_status_list.includes(status)) {
+          throw new Error(
+            `Invalid status, file: ${file}, line: ${parts.join(' ')}`,
+          )
+        }
         return {
-          status: parts[0] as any,
-          url: parts[1].split('#')[0],
+          status,
+          url,
         }
       })
-    return items
+    return { isHeaderMatched, items }
   }
 
   initFirstItem(item: ListFileItem<Status>) {
@@ -73,6 +90,10 @@ export class ListFile<Status extends string> {
 
   findByStatus(status: Status) {
     return this.items.find(item => item.status == status)
+  }
+
+  filterByStatus(status: Status) {
+    return this.items.filter(item => item.status == status)
   }
 }
 

@@ -10,3 +10,5 @@ dist/
 .DS_Store
 website/
 file-list.txt
+external-file-list.txt
+external-origin-list.txt

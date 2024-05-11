@@ -1,17 +1,15 @@
-import {
-  appendFileSync,
-  createWriteStream,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-} from 'fs'
+import { createWriteStream, existsSync, mkdirSync, writeFileSync } from 'fs'
 import { basename, dirname, extname, join } from 'path'
 import 'playwright'
 import { Page, chromium, Request, Browser } from 'playwright'
 import { Readable } from 'stream'
 import { finished } from 'stream/promises'
-import { ListFile, ListFileItem } from './list-file'
+import { ListFile } from './list-file'
+import {
+  ExternalOriginStatus,
+  loadExternalOriginList,
+} from './list-file/external-origin'
+import { loadSiteFileList } from './list-file/site-file'
 
 let browserPromise: Promise<Browser> | undefined
 
@@ -22,31 +20,69 @@ function getBrowser(): Promise<Browser> {
 
 export async function scanWeb(options: {
   dir: string
-  listFile: string
+  siteFileListFile: string
+  externalOriginListFile: string
+  externalFileListFile: string
+  defaultExternalOriginStatus: ExternalOriginStatus
   url: string
   scrollInDetail: boolean
   browser?: Browser
 }) {
-  let { dir, listFile } = options
-  let urlList = loadUrlList(listFile, options.url)
+  let { dir } = options
+  let siteFileList = loadSiteFileList(options.siteFileListFile, options.url)
+  let externalSiteList = loadExternalOriginList(options.externalOriginListFile)
   let browser = options.browser || (await getBrowser())
   let page = await browser.newPage()
   for (;;) {
-    let item = urlList.findByStatus('pending')
+    let item = siteFileList.findByStatus('pending')
     if (!item) break
-    await downloadPage({
+    let { newExternalOrigins, pendingResLinks } = await downloadPage({
       dir,
       url: item.url,
       scrollInDetail: options.scrollInDetail,
+      externalOriginList: externalSiteList,
+      defaultExternalOriginStatus: options.defaultExternalOriginStatus,
       page,
       onPageLink: url => {
-        if (urlList.add({ status: 'new', url })) {
-          console.log('add page link:', url)
+        if (siteFileList.add({ status: 'new', url })) {
+          console.log('new page link:', url)
         }
       },
     })
+    for (let origin of newExternalOrigins) {
+      if (
+        externalSiteList.add({
+          status: options.defaultExternalOriginStatus,
+          url: origin,
+        })
+      ) {
+        if (options.defaultExternalOriginStatus == 'new') {
+          console.log('new external site:', origin)
+        }
+      }
+    }
+    if (
+      newExternalOrigins.length > 0 &&
+      options.defaultExternalOriginStatus == 'new'
+    ) {
+      writeFileSync(
+        options.externalFileListFile,
+        pendingResLinks.join('\n') + '\n',
+      )
+      console.log(
+        pendingResLinks.length,
+        'pending external resources listed in file:',
+        options.externalFileListFile,
+      )
+      console.log(
+        newExternalOrigins.length,
+        'new external origin(s), please review them in file:',
+        options.externalOriginListFile,
+      )
+      break
+    }
     item.status = 'saved'
-    urlList.saveToFile()
+    siteFileList.saveToFile()
   }
   await page.close()
 }
@@ -55,17 +91,6 @@ export async function closeBrowser() {
   let p = browserPromise?.then(browser => browser.close())
   browserPromise = undefined
   return p
-}
-
-type UrlStatus = 'new' | 'pending' | 'saved' | 'skip'
-
-function loadUrlList(file: string, url: string): ListFile<UrlStatus> {
-  let list = new ListFile({
-    possible_status_list: ['new', 'pending', 'saved', 'skip'],
-    file,
-  })
-  list.initFirstItem({ status: 'pending', url })
-  return list
 }
 
 let resourceExtnameList = [
@@ -92,10 +117,12 @@ async function downloadPage(options: {
   dir: string
   url: string
   scrollInDetail: boolean
+  externalOriginList: ListFile<ExternalOriginStatus>
+  defaultExternalOriginStatus: ExternalOriginStatus
   page: Page
   onPageLink: (url: string) => void
 }) {
-  let { dir, page } = options
+  let { dir, externalOriginList, page } = options
   let origin = new URL(options.url).origin
   let file = pathnameToFile({ origin, dir, url: options.url })
   // if (existsSync(file)) return
@@ -106,6 +133,7 @@ async function downloadPage(options: {
     let href = req.url().split('#')[0]
     if (href == options.url) return
     let url = new URL(href)
+    // FIXME: auto include external resources?
     if (url.origin !== origin) return
     if (!webProtocols.includes(url.protocol)) return
     let pathname = url.pathname
@@ -204,43 +232,97 @@ async function downloadPage(options: {
       })
   })
 
-  let resLinks = await page.evaluate(
-    ({ webProtocols, external_resource_prefix }) => {
-      let links: string[] = []
-      function checkLink(
-        link: string | undefined,
-        updateFn: (rewritten_url: string) => void,
-      ): void {
+  let { resLinks, pendingResLinks, newExternalOrigins } = await page.evaluate(
+    ({
+      webProtocols,
+      external_resource_prefix,
+      externalSiteList,
+      defaultExternalOriginStatus,
+    }) => {
+      let resLinks: string[] = []
+      let pendingResLinks: string[] = []
+      let newExternalOrigins = new Set<string>()
+      function checkLink(options: {
+        href: string | undefined
+        update(rewritten_url: string): void
+        node: HTMLElement
+      }): void {
+        let link = options.href
         if (!link) return
+
         let url = new URL(link)
         if (!webProtocols.includes(url.protocol)) return
-        links.push(link)
-        if (url.origin == location.origin) return
-        let rewritten_url = link.replace(
-          url.origin,
-          `/${external_resource_prefix}/${url.host.replace(':', '_')}`,
-        )
-        updateFn(rewritten_url)
+
+        if (url.origin != location.origin) {
+          let status =
+            externalSiteList.find(item => item.url == url.origin)?.status ||
+            defaultExternalOriginStatus
+          switch (status) {
+            case 'preserve':
+              return
+            case 'remove':
+              options.node.remove()
+              return
+            case 'new':
+              newExternalOrigins.add(url.origin)
+              pendingResLinks.push(link)
+              return
+            case 'inline':
+              let rewritten_url = link.replace(
+                url.origin,
+                `/${external_resource_prefix}/${url.host.replace(':', '_')}`,
+              )
+              options.update(rewritten_url)
+              break
+            default:
+              let x: never = status
+              throw new Error('unknown external origin status: ' + x)
+          }
+        }
+
+        // same-origin or inlined external-origin resource
+        resLinks.push(link)
       }
       document
         .querySelectorAll<HTMLImageElement>('img,video,audio,script')
         .forEach(node => {
-          checkLink(node.src, src => (node.src = src))
+          checkLink({
+            href: node.src,
+            update: src => (node.src = src),
+            node,
+          })
 
           let lazySrc = node.dataset.lazySrc
           if (lazySrc?.[0] == '/') {
             lazySrc = location.origin + lazySrc
           }
-          checkLink(lazySrc, src => (node.dataset.lazySrc = src))
+          checkLink({
+            href: lazySrc,
+            update: src => (node.dataset.lazySrc = src),
+            node,
+          })
         })
       document
         .querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')
         .forEach(node => {
-          checkLink(node.href, href => (node.href = href))
+          checkLink({
+            href: node.href,
+            update: src => (node.href = src),
+            node,
+          })
         })
-      return links
+      return {
+        resLinks,
+        pendingResLinks,
+        newExternalOrigins: Array.from(newExternalOrigins),
+      }
     },
-    { webProtocols, external_resource_prefix },
+    {
+      webProtocols,
+      external_resource_prefix,
+      externalSiteList: externalOriginList.items,
+      defaultExternalOriginStatus: options.defaultExternalOriginStatus,
+    },
   )
   let pageLinks = await page.evaluate(() => {
     let links = new Set<string>()
@@ -270,20 +352,30 @@ async function downloadPage(options: {
     await downloadFile({ origin, dir, url: link })
   }
   async function savePage() {
-    let html = await page.evaluate(() => {
-      return (
-        '<!DOCTYPE html>\n' +
-        document.documentElement.outerHTML.replaceAll(
-          location.origin + '/',
-          '/',
+    let html = await page
+      .evaluate(() => {
+        return (
+          '<!DOCTYPE html>\n' +
+          document.documentElement.outerHTML.replaceAll(
+            location.origin + '/',
+            '/',
+          )
         )
-      )
-    })
+      })
+      .catch(err => {
+        if (String(err).includes('has been closed')) {
+          return ''
+        }
+        throw err
+      })
+    if (!html) return
     console.log('save page:', options.url)
     saveFile(file, html)
   }
   await savePage()
   saved = true
+
+  return { newExternalOrigins, pendingResLinks }
 }
 
 async function downloadFile(options: {
