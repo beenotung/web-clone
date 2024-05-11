@@ -78,7 +78,8 @@ export async function scanWeb(options: {
         'new external origin(s), please review them in file:',
         options.externalOriginListFile,
       )
-      break
+      await page.close()
+      return
     }
     item.status = 'saved'
     siteFileList.saveToFile()
