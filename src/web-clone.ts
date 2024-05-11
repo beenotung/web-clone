@@ -11,6 +11,7 @@ import 'playwright'
 import { Page, chromium, Request, Browser } from 'playwright'
 import { Readable } from 'stream'
 import { finished } from 'stream/promises'
+import { ListFile, ListFileItem } from './list-file'
 
 let browserPromise: Promise<Browser> | undefined
 
@@ -27,11 +28,11 @@ export async function scanWeb(options: {
   browser?: Browser
 }) {
   let { dir, listFile } = options
-  let items = loadListFile(listFile, options.url)
+  let urlList = loadUrlList(listFile, options.url)
   let browser = options.browser || (await getBrowser())
   let page = await browser.newPage()
   for (;;) {
-    let item = items.find(item => item.status == 'pending')
+    let item = urlList.findByStatus('pending')
     if (!item) break
     await downloadPage({
       dir,
@@ -39,15 +40,13 @@ export async function scanWeb(options: {
       scrollInDetail: options.scrollInDetail,
       page,
       onPageLink: url => {
-        addToFileList({
-          file: listFile,
-          items: items,
-          url,
-        })
+        if (urlList.add({ status: 'new', url })) {
+          console.log('add page link:', url)
+        }
       },
     })
     item.status = 'saved'
-    saveFileList(listFile, items)
+    urlList.saveToFile()
   }
   await page.close()
 }
@@ -58,70 +57,15 @@ export async function closeBrowser() {
   return p
 }
 
-type FileStatus = 'new' | 'pending' | 'saved' | 'skip'
+type UrlStatus = 'new' | 'pending' | 'saved' | 'skip'
 
-let listFileHeader = `# possible status: new, pending, skip, saved`
-
-type ListFileItem = {
-  status: FileStatus
-  url: string
-}
-
-function listFileItemToLine(item: ListFileItem): string {
-  return `${item.status} ${item.url}`
-}
-
-function loadListFile(file: string, url: string): ListFileItem[] {
-  let list: ListFileItem[]
-  if (!existsSync(file)) {
-    list = [{ status: 'pending', url }]
-    writeFileSync(
-      file,
-      listFileHeader + '\n' + listFileItemToLine(list[0]) + '\n',
-    )
-    return list
-  }
-  list = readFileSync(file)
-    .toString()
-    .split('\n')
-    // example: 'pending https://www.example.net/'
-    .map(line => line.trim().split(' '))
-    .filter(parts => parts.length == 2)
-    .map(parts => {
-      return {
-        status: parts[0] as any,
-        url: parts[1].split('#')[0],
-      }
-    })
-  let index = list.findIndex(item => item.url == url)
-  if (index == -1) {
-    list.unshift({ status: 'pending', url })
-    saveFileList(file, list)
-  } else if (index != 0) {
-    let [item] = list.splice(index, 1)
-    list.unshift(item)
-    saveFileList(file, list)
-  }
+function loadUrlList(file: string, url: string): ListFile<UrlStatus> {
+  let list = new ListFile({
+    possible_status_list: ['new', 'pending', 'saved', 'skip'],
+    file,
+  })
+  list.initFirstItem({ status: 'pending', url })
   return list
-}
-
-function saveFileList(file: string, list: ListFileItem[]) {
-  let text =
-    listFileHeader + '\n' + list.map(listFileItemToLine).join('\n') + '\n'
-  writeFileSync(file, text)
-}
-
-function addToFileList(options: {
-  file: string
-  items: ListFileItem[]
-  url: string
-}) {
-  let { file, items, url } = options
-  if (items.some(item => item.url == url)) return
-  console.log('add page link:', url)
-  let item: ListFileItem = { status: 'new', url }
-  items.push(item)
-  appendFileSync(file, listFileItemToLine(item) + '\n')
 }
 
 let resourceExtnameList = [
