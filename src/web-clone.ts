@@ -84,6 +84,16 @@ export async function scanWeb(options: {
     item.status = 'saved'
     siteFileList.saveToFile()
   }
+  let newFiles = siteFileList.filterByStatus('new')
+  if (newFiles.length > 0) {
+    console.log(
+      newFiles.length,
+      'new page link(s), please review them in file:',
+      options.siteFileListFile,
+    )
+  } else {
+    console.log('downloaded all pages')
+  }
   await page.close()
 }
 
