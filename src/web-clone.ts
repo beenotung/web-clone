@@ -106,6 +106,7 @@ export async function closeBrowser() {
 let resourceExtnameList = [
   '.css',
   '.js',
+  '.woff',
   '.woff2',
   '.svg',
   '.png',
