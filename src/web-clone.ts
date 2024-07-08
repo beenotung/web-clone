@@ -43,6 +43,7 @@ export async function scanWeb(options: {
       defaultExternalOriginStatus: options.defaultExternalOriginStatus,
       page,
       onPageLink: url => {
+        url = decodeURI(url)
         if (siteFileList.add({ status: 'new', url })) {
           console.log('new page link:', url)
         }
@@ -423,7 +424,7 @@ let external_resource_prefix = '__extern__'
 
 function pathnameToFile(options: { origin: string; dir: string; url: string }) {
   let url = new URL(options.url)
-  let pathname = url.pathname
+  let pathname = decodeURI(url.pathname)
   if (pathname.endsWith('/')) {
     pathname += 'index.html'
   } else if (extname(basename(pathname)) == '') {
