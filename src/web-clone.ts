@@ -226,11 +226,13 @@ async function downloadPage(options: {
   await page.evaluate(() => {
     document.querySelectorAll<HTMLAnchorElement>('[href]').forEach(link => {
       let href = link.href
+      if (!href) return
       if (new URL(href).origin != location.origin) return
       link.setAttribute('href', href.replace(location.origin, ''))
     })
     document.querySelectorAll<HTMLImageElement>('[src]').forEach(link => {
       let href = link.src
+      if (!href) return
       if (new URL(href).origin != location.origin) return
       link.setAttribute('src', href.replace(location.origin, ''))
     })
