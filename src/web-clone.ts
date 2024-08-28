@@ -109,6 +109,8 @@ let resourceExtnameList = [
   '.js',
   '.woff',
   '.woff2',
+  '.otf',
+  '.ttf',
   '.svg',
   '.png',
   '.jpeg',
