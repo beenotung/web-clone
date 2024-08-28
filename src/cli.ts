@@ -1,9 +1,12 @@
 import { env, initConfig } from './env'
 import { ExternalOriginStatus } from './list-file/external-origin'
+import { pkg } from './pkg'
 import { closeBrowser, scanWeb } from './web-clone'
 
 async function main() {
+  console.log(pkg.name, 'v' + pkg.version)
   await initConfig()
+  console.log('Website Directory:', env.SITE_DIR)
   await scanWeb({
     dir: env.SITE_DIR,
     siteFileListFile: env.SITE_FILE_LIST,
