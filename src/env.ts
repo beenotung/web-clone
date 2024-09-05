@@ -30,7 +30,7 @@ export async function initConfig() {
     (await ask(`directory of cloned website (default: ${defaultValue}): `)) ||
     defaultValue
 
-  defaultValue = 'false'
+  defaultValue = 'true'
   env.SCROLL_IN_DETAIL ||=
     (await ask(`scroll in detail (default: ${defaultValue})? `)) || defaultValue
 

@@ -1,3 +1,4 @@
+import { toBoolean } from 'populate-env'
 import { env, initConfig } from './env'
 import { ExternalOriginStatus } from './list-file/external-origin'
 import { pkg } from './pkg'
@@ -15,7 +16,7 @@ async function main() {
     defaultExternalOriginStatus:
       env.DEFAULT_EXTERNAL_ORIGIN_STATUS as ExternalOriginStatus,
     url: env.CLONE_URL,
-    scrollInDetail: env.SCROLL_IN_DETAIL == 'true',
+    scrollInDetail: toBoolean(env.SCROLL_IN_DETAIL),
   })
   await closeBrowser()
 }
