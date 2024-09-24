@@ -161,6 +161,12 @@ async function downloadPage(options: {
       return options.onPageLink(url.href)
     }
     let ext = extname(pathname)
+    if (pathname == '/_next/image') {
+      let imageUrl = url.searchParams.get('url')
+      if (imageUrl) {
+        ext = extname(imageUrl) || ext
+      }
+    }
     if (resourceExtnameList.includes(ext)) {
       await downloadFile({ origin, dir, url: url.href })
       if (stopped) return
@@ -429,6 +435,9 @@ let external_resource_prefix = '__extern__'
 function pathnameToFile(options: { origin: string; dir: string; url: string }) {
   let url = new URL(options.url)
   let pathname = decodeURI(url.pathname)
+  if (pathname == '/_next/image') {
+    return join(options.dir, pathname, url.search.replace('?', ''))
+  }
   if (pathname.endsWith('/')) {
     pathname += 'index.html'
   } else if (extname(basename(pathname)) == '') {

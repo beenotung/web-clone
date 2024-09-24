@@ -11,6 +11,7 @@ Recursively clone a website with url rewrite in controlled manner.
 - Auto scroll to activate images with js-based lazy loading
 - Review which links to download or skip
 - Rewrite absolute urls into relative urls
+- Support next.js image proxy (`/_next/image?url=xx&w=xx&q=xx`)
 
 ## Installation (optional)
 
