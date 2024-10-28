@@ -121,6 +121,8 @@ let resourceExtnameList = [
   '.mp3',
   '.mp4',
   '.json',
+  '.xml',
+  '.xsl',
   '.pdf',
 ]
 
