@@ -3,7 +3,7 @@ import { ask } from 'npm-init-helper'
 import populateEnv, { saveEnv } from 'populate-env'
 import { ExternalOriginStatus } from './list-file/external-origin'
 
-config()
+config({ quiet: true })
 
 export let env = {
   SITE_DIR: '',
