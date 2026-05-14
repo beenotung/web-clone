@@ -9,11 +9,29 @@ import {
   loadExternalOriginList,
 } from './list-file/external-origin'
 import { loadSiteFileList } from './list-file/site-file'
+import { spawn } from 'child_process'
 
 let browserPromise: Promise<Browser> | undefined
 
 function getBrowser(): Promise<Browser> {
-  browserPromise ||= chromium.launch({ headless: false })
+  browserPromise ||= chromium.launch({ headless: false }).catch(async error => {
+    let message = String(error)
+    if (!message.includes("Executable doesn't exist")) {
+      throw error
+    }
+    console.log('Running `npx playwright install chromium` ...')
+    await new Promise<void>((resolve, reject) => {
+      let child = spawn('npx', ['playwright', 'install', 'chromium'], {
+        stdio: 'inherit',
+      })
+      child.on('close', code => {
+        if (code === 0) resolve()
+        else reject(new Error(`Failed to install chromium, exit code: ${code}`))
+      })
+      child.on('error', reject)
+    })
+    return chromium.launch({ headless: false })
+  })
   return browserPromise
 }
 
